@@ -5,7 +5,7 @@ import nest_asyncio
 import pandas as pd
 import websocket
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 loop = asyncio.new_event_loop()
 asyncio.set_event_loop(loop)
@@ -19,7 +19,7 @@ DERIBIT_TEST_API_V2 = "wss://test.deribit.com/ws/api/v2"
 class DeribitWS:
     def __init__(self, client_id, client_secret, live=False):
         self._url = DERIBIT_API_V2 if live else DERIBIT_TEST_API_V2
-        self.__init_websocket()
+        self._ws = websocket.create_connection(self._url)
         self._auth_creds = {
             "jsonrpc": "2.0",
             "id": 0,
@@ -34,11 +34,8 @@ class DeribitWS:
         # Validate credential
         self.__validate_credential()
 
-    def __init_websocket(self):
-        self._ws = websocket.create_connection(self._url)
-
     # Queuing orders from Deribit
-    def market_order(self, instrument, amount, direction):
+    def get_market_order(self, instrument, amount, direction):
         params = {
             "instrument_name": instrument,
             "amount": amount,
@@ -55,7 +52,9 @@ class DeribitWS:
         response = self.api(json.dumps(self.__build_payload(f"private/{side}", params)))
         return response
 
-    def limit_order(self, instrument, amount, direction, price, post_only, reduce_only):
+    def get_limit_order(
+        self, instrument, amount, direction, price, post_only, reduce_only
+    ):
         params = {
             "instrument_name": instrument,
             "amount": amount,
@@ -112,7 +111,7 @@ class DeribitWS:
         return quote["result"]["index_price"]
 
     # account methods
-    def account_summary(self, currency, extended=True):
+    def get_account_summary(self, currency, extended=True):
         params = {"currency": currency, "extended": extended}
 
         summary = self.api(
@@ -184,6 +183,10 @@ class DeribitWS:
 
         return df
 
+    @classmethod
+    def unix_time_millis(self):
+        return datetime.datetime.now().timestamp() * 1000
+
     def __validate_credential(self):
         response = self.api(json.dumps(self._auth_creds))
         if "error" in response.keys():
@@ -226,3 +229,14 @@ class DeribitWS:
             ),
         )
         return user_trades_data
+
+    def get_transaction_log(self, currency: str, delta: timedelta) -> dict:
+        now = datetime.now()
+        params = {
+            "currency": currency,
+            "start_timestamp": int((now - delta).timestamp() * 1000),
+            "end_timestamp": int(now.timestamp() * 1000),
+        }
+        return self.api(
+            json.dumps(self.__build_payload("private/get_transaction_log", params))
+        )
