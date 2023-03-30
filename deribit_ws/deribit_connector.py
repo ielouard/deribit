@@ -240,3 +240,9 @@ class DeribitWS:
         return self.api(
             json.dumps(self.__build_payload("private/get_transaction_log", params))
         )
+
+    def get_subaccounts_details(self, currency: str) -> dict:
+        params = {"currency": currency}
+        return self.api(
+            json.dumps(self.__build_payload("private/get_subaccounts_details", params))
+        )
